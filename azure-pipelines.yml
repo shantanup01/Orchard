@@ -51,4 +51,27 @@ jobs:
     inputs:
       PathtoPublish: '$(build.artifactstagingdirectory)/Orchard.Web.zip'
       ArtifactName: '$(artifactName)'
-
+- job: CreateVM
+  displayName: Create VM image
+  dependsOn: Build
+  condition: succeeded()
+  pool:
+    name: 'GCP-AppPool-POC'
+  variables:
+    Packer.Project: 'project-for-azure-cicd'
+    Packer.Zone: 'us-central1-a'
+  steps:
+  - task: DownloadBuildArtifacts@0
+    displayName: 'Download Build Artifacts'
+    inputs:
+      artifactName: '$(artifactName)'
+  - task: CmdLine@1
+    displayName: 'Publish artifact to Cloud Storage'
+    inputs:
+      filename: gsutil
+      arguments: 'cp $(System.ArtifactsDirectory)\$(artifactName)\Orchard.Web.zip gs://$(Packer.Project)-artifacts/Orchard.Web-$(Build.BuildId).zip'
+  - task: CmdLine@1
+    displayName: 'Create image'
+    inputs:
+      filename: packer
+      arguments: 'build -var "gcp_project=$(Packer.Project)" -var "gcp_zone=$(Packer.Zone)" -var "image_family=orchard" -var "image_name=orchard-$(Build.BuildId)" -var "app_package=gs://$(Packer.Project)-artifacts/Orchard.Web-$(Build.BuildId).zip" $(Build.SourcesDirectory)/packer.json'
